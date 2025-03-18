@@ -1,0 +1,15 @@
+# proj2
+
+This is the repo for Portfolio Project 2 for Stat220-W25. 
+
+For the most up-to-date instructions, please see: https://stat220-w25.github.io/portfolio/portfolio-2.html
+
+At minimum, your final repo should contain: 
+
+  - `project2-writeup.Rmd`
+  - A knitted/rendered output document
+  
+Additionally, please follow these instructions if applicable: 
+
+  - If you have made your report available publicly on the web, please include the url as a `subtitle` in YAML
+  
