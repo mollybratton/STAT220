@@ -1,0 +1,106 @@
+---
+title: "Project 4 (Making Project 1 Interactive)"
+author: "Molly Bratton"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    navbar:
+      - { title: "Data Source", href: "https://github.com/rudeboybert/fivethirtyeight", align: right }
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(ggthemes)
+library(tidyverse)
+library(plotly)
+library(leaflet)
+library(DT)
+library(fivethirtyeight)
+
+head(trump_approval_poll)
+trump <- trump_approval_poll
+trendline <- trump_approval_trend
+
+trump_subset <- subset(trump, subgroup =='All polls')
+trend_subset <- subset(trendline, subgroup =='All polls')
+```
+
+Graphs
+=====================================
+
+Column {data-width="500"}
+-----------------------------------------------------------------------
+
+### FiveThirtyEight Graph
+
+```{r}
+#| fig-width: 8
+#| fig-height: 6
+#| fig-align: 'center'
+labels_y <- c("20", "30", "40", "50", "60", "70", "80%")
+
+#Make the plot
+graph1 <- ggplot(data=trump_subset) +
+  geom_point(aes(x=start_date, y=approve), alpha = .1, color = "#009f27") + 
+  geom_point(aes(x=start_date, y=disapprove), alpha = .1, color = "#fe7301") +
+  geom_line(data=trend_subset, aes(x=modeldate, y=approve_estimate), alpha = .9, color = "#009f27", size = 1.1) +
+  geom_line(data=trend_subset, aes(x=modeldate, y=disapprove_estimate), alpha = .9, color = "#fe7301", size = 1.1) +
+  scale_x_date(date_labels = "%b %Y") +
+  scale_y_continuous(limits=c(20, 80), breaks = seq(20, 80, by = 10), labels = labels_y) + 
+  labs(title = "Donald Trump’s First-Term Approval Ratings", subtitle = "A calculation of Trump’s first-term approval ratings, accounting for each poll's 
+       quality, recency, sample size and partisan lean." , x = "", y = "") +
+  geom_hline(yintercept = 50, size = .2) +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank()) 
+ggplotly(graph1)
+```
+
+Column {data-width="500"}
+-----------------------------------------------------------------------
+
+### Improved Graph
+
+```{r}
+#| fig-width: 8
+#| fig-height: 6
+#| fig-align: 'center'
+new_trump_data <- subset(trump_subset, population == "a" | population == "rv")
+
+labels_new <- c("0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%")
+voting_labels <-c("a" = "Adults", "rv" = "Registered Voters")
+
+graph2 <- ggplot(data=new_trump_data) +
+  geom_point(aes(x=start_date, y=approve), alpha = .15, color = "#1fa187") + 
+  geom_point(aes(x=start_date, y=disapprove), alpha = .1, color = "#440154", shape = "triangle") +
+  geom_line(data=trend_subset, aes(x=modeldate, y=approve_estimate), color = "#1fa187", size = 1.1) +
+  geom_line(data=trend_subset, aes(x=modeldate, y=disapprove_estimate), color = "#440154", size = 1.1) +
+  scale_x_date(date_labels = "%b %Y") +
+  scale_y_continuous(limits=c(0, 100), breaks = seq(0, 100, by = 10), labels = labels_new) + 
+  labs(title = "Donald Trump’s First-Term Approval Ratings", subtitle = "A calculation of Trump’s first-term approval ratings, accounting for each poll's 
+       quality, recency, sample size and partisan lean." , x = "Date", y="Percentage") +
+  geom_hline(yintercept = 50, size = .8, linetype="dashed") +
+  facet_wrap(~ population, labeller = labeller(population = voting_labels)) +
+  geom_text(x=as.Date("2018-6-1"), y=30, label="Approve", color = "#1fa187", family = "serif", fontface = "bold") +
+  geom_text(x=as.Date("2018-6-1"), y=65, label="Disapprove", color = "#440154", family = "serif", fontface = "bold") +
+  theme_gdocs() +
+  theme(panel.spacing = unit(2, "lines")) 
+ggplotly(graph2)
+```
+
+
+Data
+=====================================
+
+### About the data
+
+Data were collected and made available by [FiveThirtyEight](https://projects.fivethirtyeight.com/trump-approval-ratings/) using the [FiveThirtyEight package in R](https://github.com/rudeboybert/fivethirtyeight).
+
+```{r}
+datatable(trump_subset, filter = "top") %>%
+  formatStyle(columns = colnames(trump_subset), fontSize = "14pt")
+```
+
+Writeup
+=====================================
+I chose to revist the first portfolio project because I am very proud of these graphs I made in the first few weeks of class, and I thought that I could use my new skills to improve them. I decided to make both of the scatterplot/line graphs interactive with plotly because users could then hover over different points to see the actual values, which helps because there is quite a bit of data, so this can also be useful to trace over the trendline to see what values match up with this trendline. I also wanted to add an interactive datatable so that not only can the user see the other variables that were not used within the graph, but are still interesting to look at, but can sort it. For example, I found it useful to sort based on highest or lowest approval rate, and look at the dates, and the sample size to understand the type of polls that were conducted. Finally, I did not just want to make these interactive graphs in a regular html file, so I decided to use a flexdashboard to bring everything together in a clean and helpful format. 

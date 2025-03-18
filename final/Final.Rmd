@@ -1,0 +1,342 @@
+---
+title: "Final"
+author: Molly Bratton and Audrey Moyer
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r, setup, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+# Reading in datasets
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(maps)
+library(plotly)
+library(usdata)
+library(mapproj)
+library(ggthemes)
+library(leaflet)
+```
+
+```{r}
+states <- map_data("state")
+
+#reading in the datasets
+public_schools <- read_csv("https://data-nces.opendata.arcgis.com/api/download/v1/items/6a4fa1b0434e4688b5d60c2e5c1dcaaa/csv?layers=0")
+
+neighborhood_poverty <- read_csv("https://data-nces.opendata.arcgis.com/api/download/v1/items/10bd90462ec14a53bab1827bc8f533c9/csv?layers=1")
+```
+# Data wrangling
+
+```{r}
+#need to join the datasets - they are lined up in the same order (checked by school name and NCESSCH)
+
+schools_poverty <- public_schools %>%
+  left_join(neighborhood_poverty, by = "NCESSCH")
+```
+
+```{r}
+#changing variable names to be actually understandable
+schools_poverty <- schools_poverty %>%
+  group_by(STABR) %>%
+  mutate(
+    "state" = tolower(abbr2state(STABR))
+      )
+```
+
+```{r}
+#filtering out schools w no students
+
+schools_poverty <- schools_poverty %>%
+  filter(TOTAL > 0) %>%
+  filter(TOTFRL >= 0) %>%
+  mutate(
+    "Ratio_of_Free_Lunches" = (TOTFRL)/TOTAL
+) %>%
+  filter(Ratio_of_Free_Lunches <= 1) # need to remove schools that have a ratio 1> bc that doesn't make any sense
+```
+
+
+```{r}
+s_p_names <- schools_poverty %>%
+  group_by(state) %>%
+  summarise(
+    "reduced/free_lunches" = mean(TOTFRL, na.rm = TRUE),
+    "Income_Poverty_Ratio" = mean(IPR_EST, na.rm = TRUE),
+    "Student_Teacher_Ratio" = mean(STUTERATIO, na.rm = TRUE),
+    "Black_Student_Ratio" = mean(BL/TOTAL, na.rm = TRUE),
+    "Male_To_Female_Ratio" = mean((TOTMENROL+1)/(TOTFENROL+1), na.rm = TRUE),
+    "Ratio_of_Free_Lunches" = mean(((TOTFRL)/(TOTAL)), na.rm = TRUE),
+    "lon" = LON,
+    "lat" = LAT
+)
+```
+
+# Make intital maps
+
+```{r}
+ggplot(data = s_p_names) + 
+  geom_map(
+    aes(map_id = state, fill = Ratio_of_Free_Lunches), map = states) +
+  scale_color_viridis_c(aesthetics = "fill") +
+  expand_limits(x = states$long, y = states$lat) +
+  coord_map() +
+  theme_map() +
+  theme(legend.position = "bottom") +
+  labs(title = "Average ratio of students getting free/reduced lunch to the total number of students")
+```
+
+
+
+```{r}
+MN_schools <- schools_poverty %>%
+  filter(STABR== "MN")
+
+mn_map_data <- map_data("county", region = "minnesota")
+
+ggplot(mn_map_data, aes(x=long, y=lat, group=group)) +  
+  geom_polygon(color="black", fill="white") + 
+  coord_fixed() +
+  theme_map() +
+  geom_point(data = MN_schools, aes(x = LON, y = LAT, group = FALSE, colour = IPR_EST, alpha = 0.5)) +
+  scale_color_viridis_b() +
+  labs(title = "Average IPR for public schools in MN")
+```
+
+
+```{r}
+schools_poverty <- schools_poverty %>%
+  filter(STUTERATIO > 2.785) %>%
+  filter(STUTERATIO < 26.265)
+ggplot(schools_poverty, aes(x = STUTERATIO, y = IPR_EST)) +
+      geom_point(alpha = 0.25) +
+      geom_smooth(method = "lm", se = FALSE) 
+```
+
+```{r}
+IQR(schools_poverty$STUTERATIO, na.rm = TRUE)
+
+quantile(schools_poverty$STUTERATIO, probs = c(0,0.25,0.5,0.75,1), na.rm = TRUE)
+
+#outliers below 2.785 and above 26.265 using 1.5IQR method
+```
+
+
+# Our Research Questions
+
+\textbf{1.} Does a higher school neighborhood poverty estimate correlate with a higher or lower free lunch program at schools?
+
+```{r}
+ggplot(mn_map_data, aes(x=long, y=lat, group=group)) +  
+  geom_polygon(color="black", fill="white") + 
+  coord_fixed() +
+  theme_map() +
+  geom_point(data = MN_schools, aes(x = LON, y = LAT, group = FALSE, colour = TOTFRL, alpha = 0.5)) +
+  scale_color_viridis_b()
+```
+
+
+\textbf{2.} Are more densely populated areas more likely to have a higher or lower teacher to student ratio?
+
+```{r}
+ggplot(mn_map_data, aes(x=long, y=lat, group=group)) +  
+  geom_polygon(color="black", fill="white") + 
+  coord_fixed() +
+  theme_map() +
+  geom_point(data = MN_schools, aes(x = LON, y = LAT, group = FALSE, colour = TOTAL, alpha = 0.5)) +
+  scale_color_viridis_b()
+```
+
+
+```{r}
+ggplot(mn_map_data, aes(x=long, y=lat, group=group)) +  
+  geom_polygon(color="black", fill="white") + 
+  coord_fixed() +
+  theme_map() +
+  geom_point(data = MN_schools, aes(x = LON, y = LAT, group = FALSE, colour = STUTERATIO, alpha = 0.5)) +
+  scale_color_viridis_b() +
+  labs(title = "Student to Teacher Ratio in Minnesota")
+```
+
+
+\textbf{3.} Does the school neighborhood poverty estimate correlate to the percentage/ratio of black students of a school (or non-white students)? 
+
+```{r}
+ggplot(states, aes(x=long, y=lat, group=group)) +  
+  geom_polygon(color="navy", fill="lightblue") + 
+  coord_fixed() +
+  theme_map() +
+  geom_point(data = s_p_names, aes(x = lon, y = lat, colour = Black_Student_Ratio, group = FALSE), shape = ".") #make point size smaller
+#could filter data by low, medium, and high, and make three different maps
+```
+
+
+\textbf{4.} Does a higher student to teacher ratio correlate with higher or lower free lunch programs at schools?
+
+```{r}
+ggplot(schools_poverty, aes(x = STUTERATIO, y = TOTFRL)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Scatterplot of Student Teacher Ratio against Number of Students Eligible for Free/Reduced Lunch")
+# can't see a great relationship, gonna remove the outliers to see a clearer relationship
+```
+
+
+```{r}
+mutated <- schools_poverty %>%
+  group_by(STABR) %>%
+  summarise(
+    "average IPR of each state" = mean(IPR_EST, na.rm = TRUE),
+    "state" = tolower(abbr2state(STABR)),
+    "lat" = mean(LAT, na.rm = TRUE),
+    "lon" = mean(LON, na.rm = TRUE)
+  )  
+```
+
+```{r}
+ggplot(data = mutated) + 
+  geom_map(
+    aes(map_id = state, fill = `average IPR of each state`), 
+    map = states) +
+  expand_limits(x = states$long, y = states$lat) +
+  coord_map() +
+  theme_map() +
+  labs(title = "Average Income Poverty Ratio for Each State") +
+  theme(legend.position = "bottom")
+```
+
+
+\textbf{5.} Does the male to female ratio of students correlate with a higher or lower school neighborhood poverty estimate?
+
+Does a higher school neighborhood poverty estimate correlate with a higher or lower free lunch program at schools?
+
+```{r}
+ggplot(schools_poverty, aes(x = IPR_EST, y = TOTFRL)) +
+  geom_point() +
+  geom_smooth(method = lm, se = FALSE) +
+  labs(y = "Total number of students eligable
+       for free and reduced lunch", x = "Income to poverty ratio, where lower IPR means higher poverty level", title = "Income to poverty ratio (IPR) and total students eligable for 
+       reduced/free lunch at schools in the US")
+```
+
+```{r}
+#making an error contour map
+contour <- ggplot(states, aes(x=long, y=lat, group=group)) +  
+  geom_polygon(color="navy", fill="lightblue") + 
+  coord_fixed() +
+  theme_map() +
+  scale_color_viridis_d() +
+  geom_density_2d(data = schools_poverty, aes(x = LON, y = LAT, group = FALSE, 
+                                              colour = "IPR_EST"), alpha = 0.8, show.legend = TRUE) +
+  labs(title = "Contour map of the U.S., showing levels IPR")
+
+ggplotly(contour)
+```
+
+# Making full U.S. maps with all schools
+
+```{r}
+# Remove Hawaii and Alaska to zoom into the main 48 states
+schools_48 <- schools_poverty %>%
+  filter(STABR != "AK" & STABR != "HI") %>%
+  mutate(
+    "Income_Poverty_Ratio" = IPR_EST,
+    "Student_Teacher_Ratio" = STUTERATIO, 
+    "Black_Student_Ratio" = BL/TOTAL,
+    "Male_To_Female_Ratio" = (TOTMENROL+1)/(TOTFENROL+1),
+    "Ratio_of_Free_Lunches" = (TOTFRL+1)/(TOTAL+1)
+  ) %>% select(Income_Poverty_Ratio, Student_Teacher_Ratio, Black_Student_Ratio, Male_To_Female_Ratio, Ratio_of_Free_Lunches, LAT, LON)
+
+# Plot all of our variables: 
+
+# IPR
+ggplot(states, aes(x=long, y=lat, group=group)) +  
+  geom_polygon(color="black", fill="white") + 
+  coord_fixed() +
+  theme_map() +
+  geom_point(data = schools_48, aes(x = LON, y = LAT, group = FALSE, colour = Income_Poverty_Ratio), alpha = 0.5, shape = ".") +
+  expand_limits(x = states$long, y = states$lat) +
+  scale_color_viridis_c() +
+  theme(legend.position = "bottom") +
+  labs(title = "Income Poverty Ratio for Public Schools in U.S.", color = "IPR")
+
+# Student Teacher Ratio
+ggplot(states, aes(x=long, y=lat, group=group)) +  
+  geom_polygon(color="black", fill="white") + 
+  coord_fixed() +
+  theme_map() +
+  geom_point(data = schools_48, aes(x = LON, y = LAT, group = FALSE, colour = Student_Teacher_Ratio), alpha = 0.5, shape = ".") +
+  expand_limits(x = states$long, y = states$lat) +
+  scale_color_viridis_c() +
+  theme(legend.position = "bottom") +
+  labs(title = "Student Teacher Ratio for Public Schools in U.S.", color = "Student Teacher Ratio")
+
+# Black Student Ratio
+ggplot(states, aes(x=long, y=lat, group=group)) +  
+  geom_polygon(color="black", fill="white") + 
+  coord_fixed() +
+  theme_map() +
+  geom_point(data = schools_48, aes(x = LON, y = LAT, group = FALSE, colour = Black_Student_Ratio), alpha = 0.5, shape = ".") +
+  expand_limits(x = states$long, y = states$lat) +
+  scale_color_viridis_c() +
+  theme(legend.position = "bottom") +
+  labs(title = "Black Student Ratio for Public Schools in U.S.", color = "Black Student Ratio")
+
+# Male to Female Ratio
+ggplot(states, aes(x=long, y=lat, group=group)) +  
+  geom_polygon(color="black", fill="white") + 
+  coord_fixed() +
+  theme_map() +
+  geom_point(data = schools_48, aes(x = LON, y = LAT, group = FALSE, colour = Male_To_Female_Ratio), alpha = 0.5, shape = ".") +
+  expand_limits(x = states$long, y = states$lat) +
+  scale_color_viridis_c() +
+  theme(legend.position = "bottom") +
+  labs(title = "Male to Female Student Ratio for Public Schools in U.S.", color = "Male to Female Student Ratio")
+
+# Free Lunch Program
+ggplot(states, aes(x=long, y=lat, group=group)) +  
+  geom_polygon(color="black", fill="white") + 
+  coord_fixed() +
+  theme_map() +
+  geom_point(data = schools_48, aes(x = LON, y = LAT, group = FALSE, colour = Ratio_of_Free_Lunches), alpha = 0.5, shape = ".") +
+  expand_limits(x = states$long, y = states$lat) +
+  scale_color_viridis_c() +
+  theme(legend.position = "bottom") +
+  labs(title = "Ratio of Students using Free/Lunch Programs for Public Schools in U.S.", color = "Ratio of Students using Free/Lunch Programs")
+```
+
+# Leaflet
+
+```{r}
+colors_student_ratio <- colorNumeric(
+  palette = c("red", "blue"),
+  domain = range(schools_poverty$STUTERATIO, na.rm = TRUE)
+)
+
+leaflet(data = schools_poverty) %>%
+  addTiles() %>%
+  setView(lng = -98, lat = 40, zoom = 4) %>%
+  addCircles(radius = 1, popup = paste("School: ", schools_poverty$SCH_NAME, ", Student to Teacher Ratio: ", schools_poverty$STUTERATIO), color = ~colors_student_ratio(schools_poverty$STUTERATIO))
+```
+
+
+```{r}
+colors_student_ratio <- colorNumeric(
+  palette = c("red", "blue"),
+  domain = range(schools_poverty$Ratio_of_Free_Lunches, na.rm = TRUE)
+)
+
+leaflet(data = schools_poverty) %>%
+  addTiles() %>%
+  setView(lng = -98, lat = 40, zoom = 4) %>%
+  addCircles(radius = 1, popup = paste("School: ", schools_poverty$SCH_NAME, ", Free/Reduced Lunch Ratio: ", schools_poverty$Ratio_of_Free_Lunches), color = ~colors_student_ratio(schools_poverty$Ratio_of_Free_Lunches))
+```
+

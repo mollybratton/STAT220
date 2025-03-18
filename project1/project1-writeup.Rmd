@@ -1,0 +1,90 @@
+---
+title: "project1-writeup"
+output: html_document
+# url : http://rpubs.com/brattonm/1264365 
+---
+
+# Setting up to recreate the fivethirtyeight graph from https://projects.fivethirtyeight.com/trump-approval-ratings/
+
+```{r}
+# install data package
+install.packages("fivethirtyeight")
+```
+```{r}
+library(tidyverse)
+library(fivethirtyeight)
+library(ggplot2)
+library(ggthemes)
+head(trump_approval_poll)
+trump <- trump_approval_poll
+trendline <- trump_approval_trend
+```
+
+```{r}
+#Make subsets of the data that only include the "all polls" data
+trump_subset <- subset(trump, subgroup =='All polls')
+trend_subset <- subset(trendline, subgroup =='All polls')
+
+```
+
+# Recreating the Graph
+
+```{r}
+labels_y <- c("20", "30", "40", "50", "60", "70", "80%")
+
+#Make the plot
+ggplot(data=trump_subset) +
+  geom_point(aes(x=start_date, y=approve), alpha = .1, color = "#009f27") + 
+  geom_point(aes(x=start_date, y=disapprove), alpha = .1, color = "#fe7301") +
+  geom_line(data=trend_subset, aes(x=modeldate, y=approve_estimate), alpha = .9, color = "#009f27", size = 1.1) +
+  geom_line(data=trend_subset, aes(x=modeldate, y=disapprove_estimate), alpha = .9, color = "#fe7301", size = 1.1) +
+  scale_x_date(date_labels = "%b %Y") +
+  scale_y_continuous(limits=c(20, 80), breaks = seq(20, 80, by = 10), labels = labels_y) + 
+  labs(title = "Donald Trump’s First-Term Approval Ratings", subtitle = "A calculation of Trump’s first-term approval ratings, accounting for each poll's 
+       quality, recency, sample size and partisan lean." , x = "", y="") +
+  geom_hline(yintercept = 50, size = .2) +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank()) 
+```
+
+
+# Creating Improved Graph
+
+```{r}
+#Make the improved plot with a subset of the data and adding facets, new colors that are colorblind friendly, adding shapes to also be more accessible, starting the y axis from 0, and adding more labels to make the graph easier to understand 
+
+new_trump_data <- subset(trump_subset, population == "a" | population == "rv")
+
+labels_new <- c("0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%")
+voting_labels <-c("a" = "Adults", "rv" = "Registered Voters")
+
+ggplot(data=new_trump_data) +
+  geom_point(aes(x=start_date, y=approve), alpha = .15, color = "#1fa187") + 
+  geom_point(aes(x=start_date, y=disapprove), alpha = .1, color = "#440154", shape = "triangle") +
+  geom_line(data=trend_subset, aes(x=modeldate, y=approve_estimate), color = "#1fa187", size = 1.1) +
+  geom_line(data=trend_subset, aes(x=modeldate, y=disapprove_estimate), color = "#440154", size = 1.1) +
+  scale_x_date(date_labels = "%b %Y") +
+  scale_y_continuous(limits=c(0, 100), breaks = seq(0, 100, by = 10), labels = labels_new) + 
+  labs(title = "Donald Trump’s First-Term Approval Ratings", subtitle = "A calculation of Trump’s first-term approval ratings, accounting for each poll's 
+       quality, recency, sample size and partisan lean." , x = "Date", y="Percentage") +
+  geom_hline(yintercept = 50, size = .8, linetype="dashed") +
+  facet_wrap(~ population, labeller = labeller(population = voting_labels)) +
+  geom_text(x=as.Date("2018-6-1"), y=30, label="Approve", color = "#1fa187", family = "serif", fontface = "bold") +
+  geom_text(x=as.Date("2018-6-1"), y=65, label="Disapprove", color = "#440154", family = "serif", fontface = "bold") +
+  theme_gdocs() +
+  theme(panel.spacing = unit(2, "lines")) 
+```
+
+## Project 1 Writeup
+
+I was quite impressed by the original graph because they did a great job including the points in the back of the trendline, but keeping the points see-through so that things did not get overwhelming. I also think the way that they formatted the graph made it very easy to interpret, and it was also very nice that they made it interactive so that the user can actually use their mouse to see the data at different points in time. I also thought it was interesting that they labeled things on the interactive display, rather than on the graph directly, and that they only included a percent sign on the 80% on the y axis. I thought that this was a fine way to label it, but I thought that if labels were explicitly placed on the x and y axis, that would make things even more clear.
+
+One difference between my graph and the original graph is the time scale. The original graph is set from Jan 2017 to Jan 2021, but when I used their data package from R, the dataframe only included times from Jan 2017 to Jan 2018, making my graph's scale much shorter than the original graph. Additionally, the original graph had an interactive viewer that included the labels along the bar that the user moved. I did not build in this interactive element to my graph, but I was able to include labels of approve and disapprove in my improved graph.  
+
+My design choices started when I saw that they started their graph on 20% and their y axis had limits from 20-80%. This did make sense because this was where all of the data fell, but I remembered reading about the rule of proportional ink. Although this was talking about how bar charts should start from 0, so that areas look proportional, I also thought that in this case, if the scale was from 0 to 100 percent, the graph would look more like it was actually representing percents, and the percentage of voters who approve and disapprove were pretty much in the middle, so I think that changing the coordinates here helps with the overall interpretation. 
+
+I also decided that I wanted to alter the data a bit because there was an interesting distinction in the dataframe of the population being adults, registered voters, and likely voters. I wanted to see trends between adults and registered voters because I wondered if people who had voted approved more or less of Trump in his first term. I then faceted these next to one another to see what the differences were side by side, while still keeping the trendline on both. It is not only interesting to see the much larger amount of data for adults, but also that there are many more extreme cases within the adults population variable, while the registered voters graph stays a bit more centered.
+
+I also was really interested learning about the accessibility of R and graphics, due to the fact that when I saw the color palettes with the filters of different color blindnesses, it was practically impossible to tell the difference between colors. This is why I decided to use colors straight from the Viridis color palette. I also decided to change the shape of one of the variables, so that would also provide a more accessible interaction with this graph. By changing one of the geometries to a triangle, this not only helps make the graph more accessible, but I also think it makes it easier to see distinctions where points overlap because it makes the differences between "approve" and "disapprove" both color and shape. I also decided to change the line at 50% to a thicker dashed line to not cover up the points along the 50% line, but to also make it more visible to see where the half way point would be.
+
+I also decided to change the labels on the y-axis because I thought that having percentage signs after each number would make things even easier to understand. I also thought that changing the theme to gdocs with darker grid lines and an outline of the whole graph made the overall graph more understandable as you can clearly track the percentages and dates across the graph. Although the original graph with the minimal theme looks sleek and simple, I think the addition of these black lines make the new graph easier to see specific values and trends.
